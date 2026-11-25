@@ -1,0 +1,308 @@
+Original source excerpts. Context fragments are not standalone modules.
+UTF-8; original line ranges are included before each block.
+
+// ===== Monitoring item model including general tasks | src/App.tsx:208-246 =====
+type MonitorItemType =
+  | 'عقود الإيجار'
+  | 'مستحقات الإيجار'
+  | 'الإقامات'
+  | 'تأمين الموظفين'
+  | 'تأمين السيارات'
+  | 'استمارة السيارات'
+  | 'كرت تشغيل السيارات'
+  | 'تفويضات السيارات'
+  | 'سجلات ورخص واشتراكات'
+  | 'مهام عامة';
+type MonitorPaymentStatus = 'غير مسدد' | 'مسدد' | 'متأخر' | '';
+type MonitorRecurrence = 'مرة واحدة' | 'شهري' | 'ربع سنوي' | 'نصف سنوي' | 'سنوي';
+type MonitorRenewal = {id: string; previousEndDate: string; newEndDate: string; notes: string; createdAt: string};
+type MonitorItem = {
+  id: string;
+  type: MonitorItemType;
+  name: string;
+  referenceNumber: string;
+  startDate: string;
+  endDate: string;
+  amount: string;
+  notes: string;
+  alertOffsets: number[];
+  attachments: AttachmentRecord[];
+  completed: boolean;
+  paymentStatus: MonitorPaymentStatus;
+  recurrence: MonitorRecurrence;
+  priority: TaskPriority;
+  identityNumber: string;
+  policyNumber: string;
+  vehiclePlate: string;
+  delegatedBy: string;
+  delegatedTo: string;
+  renewals: MonitorRenewal[];
+  createdAt: string;
+};
+
+const categories: CaseCategory[] = [
+
+// ===== Monitoring types and reminder offsets | src/App.tsx:297-301 =====
+const monitorItemTypes: MonitorItemType[] = [
+  'عقود الإيجار', 'مستحقات الإيجار', 'الإقامات', 'تأمين الموظفين', 'تأمين السيارات',
+  'استمارة السيارات', 'كرت تشغيل السيارات', 'تفويضات السيارات', 'سجلات ورخص واشتراكات', 'مهام عامة',
+];
+const monitorAlertOffsets = [60, 30, 15, 7, 3, 1, 0];
+
+// ===== Monitoring defaults | src/App.tsx:312-342 =====
+  logoDataUrl: '',
+});
+const emptyMonitorItem = (): MonitorItem => ({
+  id: '',
+  type: 'عقود الإيجار',
+  name: '',
+  referenceNumber: '',
+  startDate: todayIsoDate(),
+  endDate: todayIsoDate(),
+  amount: '',
+  notes: '',
+  alertOffsets: [30, 7, 1, 0],
+  attachments: [],
+  completed: false,
+  paymentStatus: '',
+  recurrence: 'مرة واحدة',
+  priority: 'متوسطة',
+  identityNumber: '',
+  policyNumber: '',
+  vehiclePlate: '',
+  delegatedBy: '',
+  delegatedTo: '',
+  renewals: [],
+  createdAt: new Date().toISOString(),
+});
+let currentCalendarMode: CalendarMode = 'gregorian';
+let currentUserName = 'ريان عبدالله المخلافي';
+let currentOrganizationName = 'مكتب ريان عبدالله المخلافي';
+let currentAppName = 'بيّنة';
+let currentAppTagline = 'قضيتي بوضوح';
+let currentLogoDataUrl = '';
+
+// ===== General-task derived status and normalization | src/App.tsx:914-941 =====
+function getMonitorStatus(item: MonitorItem) {
+  if (item.completed || item.paymentStatus === 'مسدد') return 'مكتمل';
+  const days = getDaysUntil(item.endDate);
+  const isDueItem = item.type === 'مستحقات الإيجار' || item.type === 'مهام عامة';
+  if (item.paymentStatus === 'متأخر' || days < 0) return isDueItem ? 'متأخر' : 'منتهي';
+  if (days <= 7) return isDueItem ? 'مستحق قريبًا' : 'ينتهي قريبًا';
+  return 'ساري';
+}
+
+function getMonitorTone(item: MonitorItem) {
+  const status = getMonitorStatus(item);
+  if (status === 'منتهي' || status === 'متأخر') return 'danger';
+  if (status === 'ينتهي قريبًا' || status === 'مستحق قريبًا') return 'warn';
+  if (status === 'مكتمل') return 'ok';
+  return 'info';
+}
+
+function normalizeMonitorItem(record: Partial<MonitorItem>): MonitorItem {
+  return {
+    ...emptyMonitorItem(),
+    ...record,
+    id: record.id ?? `monitor-${Date.now()}`,
+    type: (record.type as MonitorItemType) ?? 'عقود الإيجار',
+    alertOffsets: Array.isArray(record.alertOffsets) ? record.alertOffsets : [30, 7, 1, 0],
+    attachments: Array.isArray(record.attachments) ? record.attachments : [],
+    renewals: Array.isArray(record.renewals) ? record.renewals : [],
+  };
+}
+
+// ===== Monitoring filter save renew delete complete | src/App.tsx:3490-3596 =====
+function MonitoringPage({
+  items,
+  setItems,
+  onNotice,
+}: {
+  items: MonitorItem[];
+  setItems: React.Dispatch<React.SetStateAction<MonitorItem[]>>;
+  onNotice: (message: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'الكل' | MonitorItemType>('الكل');
+  const [statusFilter, setStatusFilter] = useState('الكل');
+  const [dueFilter, setDueFilter] = useState<'الكل' | '7' | '30' | 'منتهي' | 'متأخر'>('الكل');
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [renewingFrom, setRenewingFrom] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [form, setForm] = useState<MonitorItem>(emptyMonitorItem());
+
+  const shown = items
+    .filter((item) => {
+      const status = getMonitorStatus(item);
+      const days = getDaysUntil(item.endDate);
+      const haystack = [item.type, item.name, item.referenceNumber, item.identityNumber, item.policyNumber, item.vehiclePlate, item.notes]
+        .join(' ')
+        .toLowerCase();
+      const matchQuery = haystack.includes(query.toLowerCase());
+      const matchType = typeFilter === 'الكل' || item.type === typeFilter;
+      const matchStatus = statusFilter === 'الكل' || status === statusFilter;
+      const matchDue =
+        dueFilter === 'الكل' ||
+        (dueFilter === '7' && days >= 0 && days <= 7) ||
+        (dueFilter === '30' && days >= 0 && days <= 30) ||
+        (dueFilter === 'منتهي' && status === 'منتهي') ||
+        (dueFilter === 'متأخر' && status === 'متأخر');
+      return matchQuery && matchType && matchStatus && matchDue;
+    })
+    .sort((a, b) => a.endDate.localeCompare(b.endDate));
+
+  function startNew() {
+    setEditingId(null);
+    setRenewingFrom('');
+    setForm(emptyMonitorItem());
+    setShowForm(true);
+  }
+
+  function startEdit(item: MonitorItem) {
+    setEditingId(item.id);
+    setRenewingFrom('');
+    setForm(normalizeMonitorItem(item));
+    setShowForm(true);
+  }
+
+  function startRenewal(item: MonitorItem) {
+    setEditingId(item.id);
+    setRenewingFrom(item.endDate);
+    setForm(normalizeMonitorItem(item));
+    setShowForm(true);
+  }
+
+  async function addFiles(fileList: FileList | null) {
+    const attachments = await filesToAttachments(fileList);
+    if (!attachments.length) return;
+    setForm((current) => ({...current, attachments: [...current.attachments, ...attachments]}));
+  }
+
+  function saveItem() {
+    if (!form.name.trim() || !form.endDate) return;
+    const built: MonitorItem = {
+      ...form,
+      id: editingId ?? `monitor-${Date.now()}`,
+      name: form.name.trim(),
+      renewals:
+        renewingFrom && renewingFrom !== form.endDate
+          ? [
+              ...form.renewals,
+              {
+                id: `renewal-${Date.now()}`,
+                previousEndDate: renewingFrom,
+                newEndDate: form.endDate,
+                notes: form.notes,
+                createdAt: new Date().toISOString(),
+              },
+            ]
+          : form.renewals,
+    };
+    setItems((current) => (editingId ? current.map((item) => (item.id === editingId ? built : item)) : [built, ...current]));
+    playSuccessSound();
+    onNotice(renewingFrom ? 'تم تجديد العنصر وحفظ سجل التجديد.' : editingId ? 'تم حفظ التعديلات.' : 'تمت إضافة العنصر.');
+    setSelectedId(built.id);
+    setShowForm(false);
+    setEditingId(null);
+    setRenewingFrom('');
+    setForm(emptyMonitorItem());
+  }
+
+  function deleteItem(item: MonitorItem) {
+    if (!window.confirm(`هل تريد حذف «${item.name}آ» نهائيًا؟`)) return;
+    setItems((current) => current.filter((record) => record.id !== item.id));
+    if (selectedId === item.id) setSelectedId(null);
+    onNotice('تم حذف العنصر.');
+  }
+
+  function toggleCompleted(item: MonitorItem) {
+    setItems((current) => current.map((record) => (record.id === item.id ? {...record, completed: !record.completed} : record)));
+    onNotice(item.completed ? 'تمت إعادة العنصر إلى المتابعة.' : 'تم وضع العنصر كمكتمل.');
+  }
+
+// ===== General-task priority input | src/App.tsx:3649-3655 =====
+              <><label>اسم المفوض<input onChange={(event) => setForm({...form, delegatedBy: event.target.value})} value={form.delegatedBy} /></label><label>اسم المفوض إليه<input onChange={(event) => setForm({...form, delegatedTo: event.target.value})} value={form.delegatedTo} /></label></>
+            ) : null}
+            {form.type === 'مهام عامة' ? <label>الأولوية<select onChange={(event) => setForm({...form, priority: event.target.value as TaskPriority})} value={form.priority}>{taskPriorities.map((item) => <option key={item}>{item}</option>)}</select></label> : null}
+            <label className="full">
+              مواعيد التنبيه
+              <div className="chips reminder-chips">
+                {monitorAlertOffsets.map((offset) => {
+
+// ===== Scheduled reminders: hearings and monitoring; no case-task loop | src/App.tsx:6115-6189 =====
+  useEffect(() => {
+    if (!settings.remindersEnabled) return;
+    const reminderMinutes = getReminderMinutes(settings);
+
+    function checkScheduledHearings() {
+      let sent: Set<string>;
+      try {
+        sent = new Set(JSON.parse(window.localStorage.getItem('bayyinah-sent-reminders') ?? '[]') as string[]);
+      } catch {
+        sent = new Set();
+      }
+
+      for (const record of cases) {
+        for (const hearing of record.hearings) {
+          if (hearing.status !== 'قادمة' && hearing.status !== 'مؤجلة') continue;
+          const hearingAt = new Date(`${hearing.date}T${hearing.time || '00:00'}:00`);
+          const differenceMinutes = Math.ceil((hearingAt.getTime() - Date.now()) / 60000);
+          if (!Number.isFinite(differenceMinutes) || differenceMinutes <= 0) continue;
+          const activeOffset = reminderMinutes.find((offset) => offset >= differenceMinutes);
+          if (!activeOffset) continue;
+          const reminderKey = `${record.id}-${hearing.id}-${hearing.date}-${hearing.time}-${activeOffset}`;
+          if (sent.has(reminderKey)) continue;
+
+          sent.add(reminderKey);
+          window.localStorage.setItem('bayyinah-sent-reminders', JSON.stringify([...sent]));
+          const remaining = activeOffset === 60 ? 'ساعة واحدة' : activeOffset === 1440 ? 'يوم واحد' : `${activeOffset / 1440} أيام`;
+          const title = `تذكير جلسة خلال ${remaining}`;
+          const text = `${record.title} · ${hearing.time} · ${hearing.court}`;
+          setScheduledAlert({target: 'case', recordId: record.id, title, text});
+          playReminderSound();
+
+          if (settings.desktopNotificationsEnabled && window.bayyinahDesktop) {
+            void window.bayyinahDesktop.notify({title, body: text});
+          } else if (
+            settings.desktopNotificationsEnabled &&
+            'Notification' in window &&
+            Notification.permission === 'granted'
+          ) {
+            const desktopNotification = new Notification(title, {body: text, tag: reminderKey});
+            desktopNotification.onclick = () => {
+              window.focus();
+              setSelectedCaseId(record.id);
+              setPage('details');
+              desktopNotification.close();
+            };
+          }
+          return;
+        }
+      }
+
+      for (const item of monitorItems) {
+        if (item.completed) continue;
+        const days = getDaysUntil(item.endDate);
+        if (!item.alertOffsets.includes(days)) continue;
+        const reminderKey = `monitor-${item.id}-${item.endDate}-${days}`;
+        if (sent.has(reminderKey)) continue;
+        sent.add(reminderKey);
+        window.localStorage.setItem('bayyinah-sent-reminders', JSON.stringify([...sent]));
+        const title = days === 0 ? 'استحقاق اليوم' : `استحقاق خلال ${days} يوم`;
+        const text = `${item.type} · ${item.name}`;
+        setScheduledAlert({target: 'monitoring', recordId: item.id, title, text});
+        playReminderSound();
+        if (settings.desktopNotificationsEnabled && window.bayyinahDesktop) {
+          void window.bayyinahDesktop.notify({title, body: text});
+        } else if (settings.desktopNotificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, {body: text, tag: reminderKey});
+        }
+        return;
+      }
+    }
+
+    checkScheduledHearings();
+    const timer = window.setInterval(checkScheduledHearings, 60000);
+    return () => window.clearInterval(timer);
+  }, [cases, monitorItems, settings]);

@@ -1,0 +1,29 @@
+# Dependencies and generated output
+node_modules/
+dist/
+release*/
+*.tsbuildinfo
+# Private signing and activation data
+license-private.pem
+license-*.txt
+*.pfx
+*.p12
+*.key
+.env
+.env.*
+!.env.example
+# Runtime user data and backups
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+documents/
+backups/
+*.bak
+*.zip
+*.exe
+# Local tooling state
+.codex/
+.DS_Store
+Thumbs.db

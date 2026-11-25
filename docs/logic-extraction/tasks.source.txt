@@ -1,0 +1,530 @@
+Original source excerpts. Context fragments are not standalone modules.
+UTF-8; original line ranges are included before each block.
+
+// ===== Priority and status types | src/App.tsx:88-89 =====
+type TaskPriority = 'منخفضة' | 'متوسطة' | 'عالية' | 'عاجلة';
+type TaskStatus = 'مفتوحة' | 'قيد التنفيذ' | 'مكتملة' | 'متأخرة';
+
+// ===== Task and parent case models | src/App.tsx:119-150 =====
+type CaseTask = {
+  id: string;
+  title: string;
+  owner: string;
+  dueDate: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+};
+
+type CaseRecord = {
+  id: string;
+  title: string;
+  number: string;
+  year: string;
+  category: CaseCategory;
+  court: CourtType;
+  chamber: string;
+  city: string;
+  status: CaseStatus;
+  registrationDate: string;
+  responsibleLawyer: string;
+  notes: string;
+  amountClaimed: string;
+  parties: CaseParty[];
+  hearings: Hearing[];
+  tasks: CaseTask[];
+  attachments: AttachmentRecord[];
+  reminders: string[];
+  nextTask: string;
+  createdAt: string;
+};
+
+
+// ===== Priority and status order | src/App.tsx:295-296 =====
+const taskPriorities: TaskPriority[] = ['منخفضة', 'متوسطة', 'عالية', 'عاجلة'];
+const taskStatuses: TaskStatus[] = ['مفتوحة', 'قيد التنفيذ', 'مكتملة', 'متأخرة'];
+
+// ===== Dashboard reminder days | src/App.tsx:949-957 =====
+function getReminderDays(settings: AppSettings) {
+  return settings.defaultReminderOffsets
+    .map((item) => {
+      const match = item.match(/\d+/);
+      return match ? Number(match[0]) : item.includes('ساعة') ? 0 : null;
+    })
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b);
+}
+
+// ===== Priority colors | src/App.tsx:971-976 =====
+function getTaskTone(priority: TaskPriority) {
+  if (priority === 'عاجلة') return 'danger';
+  if (priority === 'عالية') return 'warn';
+  if (priority === 'متوسطة') return 'info';
+  return 'ok';
+}
+
+// ===== Case normalization | src/App.tsx:1040-1063 =====
+function normalizeCase(record: Partial<CaseRecord>): CaseRecord {
+  return {
+    id: record.id ?? `case-${Date.now()}`,
+    title: record.title ?? 'قضية بدون عنوان',
+    number: record.number ?? '',
+    year: record.year ?? '2026',
+    category: (record.category as CaseCategory) ?? 'تجارية',
+    court: (record.court as CourtType) ?? 'المحكمة العامة',
+    chamber: record.chamber ?? '',
+    city: record.city ?? '',
+    status: (record.status as CaseStatus) ?? 'جديدة',
+    registrationDate: record.registrationDate ?? todayIsoDate(),
+    responsibleLawyer: record.responsibleLawyer ?? '',
+    notes: record.notes ?? '',
+    amountClaimed: record.amountClaimed ?? '',
+    parties: Array.isArray(record.parties) ? record.parties : [],
+    hearings: Array.isArray(record.hearings) ? record.hearings : [],
+    tasks: Array.isArray(record.tasks) ? record.tasks : [],
+    attachments: Array.isArray(record.attachments) ? record.attachments : [],
+    reminders: Array.isArray(record.reminders) ? record.reminders : [],
+    nextTask: record.nextTask ?? 'مراجعة القضية',
+    createdAt: record.createdAt ?? todayIsoDate(),
+  };
+}
+
+// ===== Header reminder setting guard | src/App.tsx:1487-1488 =====
+  const notifications = settings.remindersEnabled
+    ? [
+
+// ===== Header task notifications | src/App.tsx:1501-1512 =====
+        ...cases.flatMap((record) =>
+          record.tasks
+            .map((task) => ({task, days: getDaysUntil(task.dueDate)}))
+            .filter(({task, days}) => task.status !== 'مكتملة' && days <= 7)
+            .map(({task, days}) => ({
+              key: `task-${record.id}-${task.id}`,
+              days,
+              tone: days < 0 || task.priority === 'عاجلة' ? 'danger' : 'warn',
+              text: days < 0 ? `مهمة متأخرة: ${task.title}` : `مهمة قريبة: ${task.title}`,
+              action: () => openCase(record.id),
+            })),
+        ),
+
+// ===== Dashboard open-task count | src/App.tsx:1749-1750 =====
+  const allTasks = cases.flatMap((record) => record.tasks.map((task) => ({...task, caseTitle: record.title})));
+  const openTasks = allTasks.filter((task) => task.status !== 'مكتملة').length;
+
+// ===== Dashboard task reminders | src/App.tsx:1786-1794 =====
+    ...allTasks
+      .map((task) => {
+        const days = getDaysUntil(task.dueDate);
+        if (task.status === 'مكتملة') return null;
+        if (days < 0) return {tone: 'danger', text: `مهمة متأخرة: ${task.title}`};
+        if (!settings.remindersEnabled || !reminderDays.includes(days)) return null;
+        return {tone: task.priority === 'عاجلة' ? 'danger' : 'warn', text: `مهمة ${task.title} خلال ${days} يوم`};
+      })
+      .filter(Boolean) as {tone: string; text: string}[],
+
+// ===== Case task form defaults | src/App.tsx:2083-2091 =====
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskForm, setTaskForm] = useState<CaseTask>({
+    id: '',
+    title: '',
+    owner: '',
+    dueDate: todayIsoDate(),
+    priority: 'متوسطة',
+    status: 'مفتوحة',
+  });
+
+// ===== Case task summary | src/App.tsx:2103-2106 =====
+  const selectedRecord = record;
+
+  const upcoming = getUpcomingHearing(record);
+  const openTasks = record.tasks.filter((task) => task.status !== 'مكتملة');
+
+// ===== Hearing updates nextTask | src/App.tsx:2115-2135 =====
+      chamber: selectedRecord.chamber,
+      description: '',
+      decision: '',
+      status: 'قادمة',
+    });
+  }
+
+  function saveHearing() {
+    if (!hearingForm.date || !hearingForm.time) return;
+    const built = {...hearingForm, id: editingHearingId ?? `hearing-${Date.now()}`};
+    onUpdateCase(selectedRecord.id, (current) => ({
+      ...current,
+      hearings: editingHearingId
+        ? current.hearings.map((item) => (item.id === editingHearingId ? built : item))
+        : [...current.hearings, built],
+      nextTask: built.description || current.nextTask,
+    }));
+    playSuccessSound();
+    setShowHearingForm(false);
+    resetHearingForm();
+  }
+
+// ===== Case task create edit delete | src/App.tsx:2150-2175 =====
+  function saveTask() {
+    if (!taskForm.title.trim()) return;
+    const built = {...taskForm, id: taskForm.id || `task-${Date.now()}`};
+    onUpdateCase(selectedRecord.id, (current) => ({
+      ...current,
+      tasks: taskForm.id
+        ? current.tasks.map((item) => (item.id === taskForm.id ? built : item))
+        : [...current.tasks, built],
+      nextTask: built.status !== 'مكتملة' ? built.title : current.nextTask,
+    }));
+    playSuccessSound();
+    setShowTaskForm(false);
+    setTaskForm({id: '', title: '', owner: '', dueDate: todayIsoDate(), priority: 'متوسطة', status: 'مفتوحة'});
+  }
+
+  function editTask(task: CaseTask) {
+    setTaskForm(task);
+    setShowTaskForm(true);
+  }
+
+  function deleteTask(taskId: string) {
+    onUpdateCase(selectedRecord.id, (current) => ({
+      ...current,
+      tasks: current.tasks.filter((item) => item.id !== taskId),
+    }));
+  }
+
+// ===== Case task user interface | src/App.tsx:2454-2481 =====
+          {tab === 'المهام' && (
+            <>
+              <div className="sectiontitle">
+                <h2>المهام المرتبطة</h2>
+                <button onClick={() => { setTaskForm({id: '', title: '', owner: '', dueDate: todayIsoDate(), priority: 'متوسطة', status: 'مفتوحة'}); setShowTaskForm((v)=>!v); }} type="button">إضافة مهمة</button>
+              </div>
+              {showTaskForm && (
+                <section className="panel inline-form">
+                  <div className="form">
+                    <label>اسم المهمة<input value={taskForm.title} onChange={(e)=>setTaskForm({...taskForm,title:e.target.value})} /></label>
+                    <label>المسؤول<input value={taskForm.owner} onChange={(e)=>setTaskForm({...taskForm,owner:e.target.value})} /></label>
+                    <label>تاريخ الاستحقاق<CalendarDateInput value={taskForm.dueDate} onChange={(value)=>setTaskForm({...taskForm,dueDate:value})} /><DatePreview value={taskForm.dueDate} /></label>
+                    <label>الأولوية<select value={taskForm.priority} onChange={(e)=>setTaskForm({...taskForm,priority:e.target.value as TaskPriority})}>{taskPriorities.map((item)=><option key={item}>{item}</option>)}</select></label>
+                    <label>الحالة<select value={taskForm.status} onChange={(e)=>setTaskForm({...taskForm,status:e.target.value as TaskStatus})}>{taskStatuses.map((item)=><option key={item}>{item}</option>)}</select></label>
+                  </div>
+                  <div className="form-actions"><Btn kind="outline" onClick={()=>setShowTaskForm(false)}>إغلاق</Btn><Btn onClick={saveTask}>{taskForm.id ? 'حفظ التعديل' : 'حفظ المهمة'}</Btn></div>
+                </section>
+              )}
+              {record.tasks.length ? record.tasks.map((task) => (
+                <article className="session-card task-card" key={task.id}>
+                  <div><small>المهمة</small><b>{task.title}</b><p>{task.owner || 'بدون مسؤول'}</p></div>
+                  <div><small>الاستحقاق</small><b>{task.dueDate ? formatDate(task.dueDate) : 'غير محدد'}</b><p>{task.status}</p></div>
+                  <div><small>الأولوية</small><Status text={task.priority} tone={getTaskTone(task.priority)} /></div>
+                  <div className="card-actions"><Btn kind="outline" onClick={() => editTask(task)}>تعديل</Btn><Btn kind="outline" onClick={() => deleteTask(task.id)}>حذف</Btn></div>
+                </article>
+              )) : <div className="empty-lite">لا توجد مهام لهذه القضية بعد.</div>}
+            </>
+          )}
+
+// ===== Unified calendar task events | src/App.tsx:2960-2969 =====
+    ...cases.flatMap((record) => record.tasks.map((task) => ({
+      id: `task-${record.id}-${task.id}`,
+      date: task.dueDate,
+      time: '',
+      title: task.title,
+      subtitle: record.title,
+      kind: 'مهمة',
+      tone: task.status === taskStatuses[2] ? 'ok' : getDaysUntil(task.dueDate) < 0 || task.priority === taskPriorities[3] ? 'danger' : 'task',
+      session: null,
+    }))).filter((event) => event.date),
+
+// ===== Calendar hearing updates nextTask | src/App.tsx:3030-3043 =====
+
+  function saveSession() {
+    if (!selectedCaseId || !form.date || !form.time) return;
+    const built = {...form, id: editingSession?.hearingId ?? `hearing-${Date.now()}`};
+    onUpdateCase(selectedCaseId, (current) => ({
+      ...current,
+      hearings: editingSession
+        ? current.hearings.map((item) => (item.id === editingSession.hearingId ? built : item))
+        : [...current.hearings, built],
+      nextTask: built.description || current.nextTask,
+    }));
+    playSuccessSound();
+    setShowForm(false);
+    resetForm();
+
+// ===== Complete central tasks page | src/App.tsx:3254-3488 =====
+function TasksPage({
+  cases,
+  openCase,
+  onUpdateCase,
+}: {
+  cases: CaseRecord[];
+  openCase: (id: string) => void;
+  onUpdateCase: (id: string, updater: (record: CaseRecord) => CaseRecord) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [priority, setPriority] = useState<'الكل' | TaskPriority>('الكل');
+  const [status, setStatus] = useState<'الكل' | TaskStatus>('الكل');
+  const [showForm, setShowForm] = useState(false);
+  const [selectedCaseId, setSelectedCaseId] = useState(cases[0]?.id ?? '');
+  const [editingTask, setEditingTask] = useState<{caseId: string; taskId: string} | null>(null);
+  const [taskForm, setTaskForm] = useState<CaseTask>({
+    id: '', title: '', owner: '', dueDate: todayIsoDate(), priority: 'متوسطة', status: 'مفتوحة',
+  });
+  const tasks = cases.flatMap((record) =>
+    record.tasks.map((task) => ({
+      caseId: record.id,
+      caseTitle: record.title,
+      ...task,
+    })),
+  );
+
+  const openTasks = tasks.filter((task) => task.status !== 'مكتملة');
+  const overdueTasks = openTasks.filter((task) => task.dueDate && getDaysUntil(task.dueDate) < 0);
+  const urgentTasks = openTasks.filter((task) => task.priority === 'عاجلة' || task.priority === 'عالية');
+  const completedTasks = tasks.filter((task) => task.status === 'مكتملة');
+
+  const shown = tasks
+    .filter((task) => {
+      const haystack = [task.title, task.owner, task.caseTitle, task.dueDate].join(' ').toLowerCase();
+      const matchQuery = haystack.includes(query.toLowerCase());
+      const matchPriority = priority === 'الكل' ? true : task.priority === priority;
+      const matchStatus = status === 'الكل' ? true : task.status === status;
+      return matchQuery && matchPriority && matchStatus;
+    })
+    .sort((a, b) => {
+      const aDate = a.dueDate || '9999-12-31';
+      const bDate = b.dueDate || '9999-12-31';
+      const dateOrder = aDate.localeCompare(bDate);
+      if (dateOrder !== 0) return dateOrder;
+      return taskPriorities.indexOf(b.priority) - taskPriorities.indexOf(a.priority);
+    });
+
+  function resetTaskForm() {
+    setEditingTask(null);
+    setTaskForm({id: '', title: '', owner: '', dueDate: todayIsoDate(), priority: 'متوسطة', status: 'مفتوحة'});
+  }
+
+  function startNewTask() {
+    resetTaskForm();
+    setSelectedCaseId(cases[0]?.id ?? '');
+    setShowForm(true);
+  }
+
+  function editTask(task: CaseTask & {caseId: string}) {
+    setSelectedCaseId(task.caseId);
+    setEditingTask({caseId: task.caseId, taskId: task.id});
+    setTaskForm({
+      id: task.id,
+      title: task.title,
+      owner: task.owner,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      status: task.status,
+    });
+    setShowForm(true);
+  }
+
+  function saveTask() {
+    if (!selectedCaseId || !taskForm.title.trim()) return;
+    const built = {...taskForm, id: editingTask?.taskId ?? `task-${Date.now()}`, title: taskForm.title.trim()};
+    onUpdateCase(selectedCaseId, (record) => ({
+      ...record,
+      tasks: editingTask
+        ? record.tasks.map((task) => (task.id === editingTask.taskId ? built : task))
+        : [...record.tasks, built],
+      nextTask: built.status === 'مكتملة' ? record.nextTask : built.title,
+    }));
+    playSuccessSound();
+    setShowForm(false);
+    resetTaskForm();
+  }
+
+  function deleteTask(caseId: string, taskId: string, title: string) {
+    if (!window.confirm(`هل تريد حذف المهمة «${title}آ» نهائيًا؟`)) return;
+    onUpdateCase(caseId, (record) => ({...record, tasks: record.tasks.filter((task) => task.id !== taskId)}));
+    if (editingTask?.taskId === taskId) {
+      setShowForm(false);
+      resetTaskForm();
+    }
+  }
+
+  function toggleTaskDone(task: CaseTask & {caseId: string}) {
+    const nextStatus: TaskStatus = task.status === 'مكتملة' ? 'مفتوحة' : 'مكتملة';
+    onUpdateCase(task.caseId, (record) => ({
+      ...record,
+      tasks: record.tasks.map((item) => (item.id === task.id ? {...item, status: nextStatus} : item)),
+      nextTask: nextStatus === 'مكتملة' && record.nextTask === task.title ? 'مراجعة القضية' : record.nextTask,
+    }));
+    playSuccessSound();
+  }
+
+  return (
+    <>
+      <Head
+        action={<Btn onClick={startNewTask}><Plus /> إضافة مهمة</Btn>}
+        title="المهام"
+        sub="لوحة مركزية لإضافة المهام وتعديلها وحذفها حسب التاريخ والأولوية والحالة"
+      />
+      <section className="task-summary-grid">
+        <article className="panel task-summary-card">
+          <small>المهام المفتوحة</small>
+          <b>{openTasks.length}</b>
+        </article>
+        <article className="panel task-summary-card danger">
+          <small>المهام المتأخرة</small>
+          <b>{overdueTasks.length}</b>
+        </article>
+        <article className="panel task-summary-card warn">
+          <small>عالية أو عاجلة</small>
+          <b>{urgentTasks.length}</b>
+        </article>
+        <article className="panel task-summary-card ok">
+          <small>المهام المكتملة</small>
+          <b>{completedTasks.length}</b>
+        </article>
+      </section>
+      {showForm ? (
+        <section className="panel inline-form">
+          <h2>{editingTask ? 'تعديل المهمة' : 'إضافة مهمة جديدة'}</h2>
+          <div className="form">
+            <label>
+              القضية المرتبطة
+              <select disabled={Boolean(editingTask)} onChange={(event) => setSelectedCaseId(event.target.value)} value={selectedCaseId}>
+                {cases.map((record) => <option key={record.id} value={record.id}>{record.title}</option>)}
+              </select>
+            </label>
+            <label>
+              اسم المهمة
+              <input onChange={(event) => setTaskForm({...taskForm, title: event.target.value})} value={taskForm.title} />
+            </label>
+            <label>
+              المسؤول
+              <input onChange={(event) => setTaskForm({...taskForm, owner: event.target.value})} value={taskForm.owner} />
+            </label>
+            <label>
+              تاريخ الاستحقاق
+              <CalendarDateInput onChange={(value) => setTaskForm({...taskForm, dueDate: value})} value={taskForm.dueDate} />
+              <DatePreview value={taskForm.dueDate} />
+            </label>
+            <label>
+              الأولوية
+              <select onChange={(event) => setTaskForm({...taskForm, priority: event.target.value as TaskPriority})} value={taskForm.priority}>
+                {taskPriorities.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
+              الحالة
+              <select onChange={(event) => setTaskForm({...taskForm, status: event.target.value as TaskStatus})} value={taskForm.status}>
+                {taskStatuses.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="form-actions">
+            <Btn kind="outline" onClick={() => { setShowForm(false); resetTaskForm(); }}>إغلاق</Btn>
+            <Btn onClick={saveTask}>{editingTask ? 'حفظ التعديلات' : 'حفظ المهمة'}</Btn>
+          </div>
+        </section>
+      ) : null}
+      <div className="tools panel">
+        <div className="search">
+          <Search />
+          <input onChange={(event) => setQuery(event.target.value)} placeholder="ابحث باسم المهمة أو المسؤول أو القضية" value={query} />
+        </div>
+        <div className="chips">
+          {(['الكل', ...taskPriorities] as const).map((item) => (
+            <button className={priority === item ? 'active' : ''} key={item} onClick={() => setPriority(item)} type="button">
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="chips">
+          {(['الكل', ...taskStatuses] as const).map((item) => (
+            <button className={status === item ? 'active' : ''} key={item} onClick={() => setStatus(item)} type="button">
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+      {shown.length ? (
+        <div className="session-list">
+          {shown.map((task) => (
+            <article className={`panel session-row task-row ${task.status !== 'مكتملة' && task.dueDate && getDaysUntil(task.dueDate) < 0 ? 'task-overdue' : ''}`} key={task.id}>
+              <div>
+                <small>المهمة</small>
+                <b>{task.title}</b>
+                <p>{task.caseTitle}</p>
+              </div>
+              <div>
+                <small>المسؤول / الاستحقاق</small>
+                <b>{task.owner || 'غير محدد'}</b>
+                <p>{task.dueDate ? formatDate(task.dueDate) : 'بلا تاريخ'}</p>
+              </div>
+              <div>
+                <small>الأولوية / الحالة</small>
+                <Status text={task.priority} tone={getTaskTone(task.priority)} />
+                <p>{task.status}</p>
+              </div>
+              <div className="session-row-actions">
+                <Btn kind={task.status === 'مكتملة' ? 'outline' : 'gold'} onClick={() => toggleTaskDone(task)}>
+                  {task.status === 'مكتملة' ? 'إعادة فتح' : 'إنجاز'}
+                </Btn>
+                <Btn kind="outline" onClick={() => editTask(task)}><Pencil /> تعديل</Btn>
+                <Btn kind="danger" onClick={() => deleteTask(task.caseId, task.id, task.title)}><Trash2 /> حذف</Btn>
+                <Btn kind="outline" onClick={() => openCase(task.caseId)}>
+                  فتح القضية
+                </Btn>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty panel">
+          <Bell />
+          <h2>لا توجد مهام مطابقة</h2>
+          <p>جرّب تغيير الحالة أو الأولوية أو عبارة البحث.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ===== Independent quick-task state | src/App.tsx:4334-4335 =====
+  const [floatingTask, setFloatingTask] = useState('');
+  const [floatingTasks, setFloatingTasks] = usePersistentState<string[]>('bayyinah-floating-tool-tasks', []);
+
+// ===== Quick-task add delete interface | src/App.tsx:4710-4722 =====
+    if (activeTool === 'floating-tasks') {
+      return (
+        <div className="tool-detail-grid">
+          <label>مهمة سريعة<input onChange={(event) => setFloatingTask(event.target.value)} placeholder="اكتب مهمة قصيرة" value={floatingTask} /></label>
+          <Btn onClick={() => { if (floatingTask.trim()) { setFloatingTasks([floatingTask.trim(), ...floatingTasks]); setFloatingTask(''); } }}><Plus /> إضافة</Btn>
+          <div className="tool-list">
+            {floatingTasks.length ? floatingTasks.map((task, index) => (
+              <p key={task + '-' + index}><span>{task}</span><button onClick={() => setFloatingTasks(floatingTasks.filter((_, itemIndex) => itemIndex !== index))} type="button">حذف</button></p>
+            )) : <small>لا توجد مهام عائمة بعد.</small>}
+          </div>
+        </div>
+      );
+    }
+
+// ===== Automatic task when creating a case | src/App.tsx:6255-6272 =====
+      tasks: existingRecord
+        ? existingRecord.tasks
+        : draft.hearingDescription.trim()
+        ? [
+            {
+              id: `task-${Date.now()}`,
+              title: draft.hearingDescription.trim(),
+              owner: draft.responsibleLawyer.trim(),
+              dueDate: draft.hearingDate,
+              priority: 'عالية',
+              status: 'مفتوحة',
+            },
+          ]
+        : [],
+      attachments: draft.attachments,
+      reminders: existingRecord?.reminders ?? [],
+      nextTask: existingRecord?.nextTask || draft.hearingDescription.trim() || 'مراجعة القضية',
+      createdAt: existingRecord?.createdAt ?? todayIsoDate(),
+
+// ===== Case updater | src/App.tsx:6302-6305 =====
+  function updateCase(caseId: string, updater: (record: CaseRecord) => CaseRecord) {
+    setCases((current) => current.map((record) => (record.id === caseId ? normalizeCase(updater(record)) : record)));
+    setNotice('تم تحديث بيانات القضية.');
+  }

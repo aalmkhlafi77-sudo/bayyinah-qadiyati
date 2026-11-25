@@ -1,0 +1,507 @@
+Original source excerpts. Context fragments are not standalone modules.
+UTF-8; original line ranges are included before each block.
+
+// ===== VAT types rows normalization calculation and period classification | src/App.tsx:4143-4289 =====
+type VatLineKey =
+  | 'line1'
+  | 'line2'
+  | 'line3'
+  | 'line4'
+  | 'line5'
+  | 'line7'
+  | 'line8'
+  | 'line9'
+  | 'line10'
+  | 'line11';
+
+type VatLineDraft = {
+  amount: string;
+  adjustment: string;
+};
+
+type VatDraft = {
+  id?: string;
+  companyName: string;
+  periodFrom: string;
+  periodTo: string;
+  lines: Record<VatLineKey, VatLineDraft>;
+  previousCorrections: string;
+  carriedVat: string;
+  notes: string;
+  savedAt?: string;
+};
+
+type VatReturnRow = {
+  key: VatLineKey | 'line6' | 'line12';
+  number: number;
+  label: string;
+  section: 'sales' | 'purchases';
+  rate: number;
+  editable: boolean;
+};
+
+type VatReportRange = 'month' | 'quarter' | 'half' | 'year';
+type VatReportMode = 'summary' | 'detail';
+
+const VAT_LINE_KEYS: VatLineKey[] = ['line1', 'line2', 'line3', 'line4', 'line5', 'line7', 'line8', 'line9', 'line10', 'line11'];
+
+const VAT_RETURN_ROWS: VatReturnRow[] = [
+  {key: 'line1', number: 1, label: 'المبيعات الخاضعة للنسبة الأساسية 15%', section: 'sales', rate: 15, editable: true},
+  {key: 'line2', number: 2, label: 'المبيعات التي تتحمل الدولة ضريبتها', section: 'sales', rate: 0, editable: true},
+  {key: 'line3', number: 3, label: 'المبيعات المحلية الخاضعة للنسبة الصفرية', section: 'sales', rate: 0, editable: true},
+  {key: 'line4', number: 4, label: 'الصادرات', section: 'sales', rate: 0, editable: true},
+  {key: 'line5', number: 5, label: 'المبيعات المعفاة من الضريبة', section: 'sales', rate: 0, editable: true},
+  {key: 'line6', number: 6, label: 'إجمالي المبيعات', section: 'sales', rate: 0, editable: false},
+  {key: 'line7', number: 7, label: 'المشتريات الخاضعة للنسبة الأساسية 15%', section: 'purchases', rate: 15, editable: true},
+  {key: 'line8', number: 8, label: 'الاستيرادات الخاضعة للضريبة الأساسية والمدفوعة عند الاستيراد 15%', section: 'purchases', rate: 15, editable: true},
+  {key: 'line9', number: 9, label: 'التوريدات أو الاستيرادات الخاضعة لآلية الاحتساب العكسي', section: 'purchases', rate: 0, editable: true},
+  {key: 'line10', number: 10, label: 'المشتريات الخاضعة للنسبة الصفرية', section: 'purchases', rate: 0, editable: true},
+  {key: 'line11', number: 11, label: 'المشتريات المعفاة من الضريبة', section: 'purchases', rate: 0, editable: true},
+  {key: 'line12', number: 12, label: 'إجمالي المشتريات', section: 'purchases', rate: 0, editable: false},
+];
+
+function emptyVatLine(): VatLineDraft {
+  return {amount: '', adjustment: ''};
+}
+
+function emptyVatLines(): Record<VatLineKey, VatLineDraft> {
+  return VAT_LINE_KEYS.reduce((lines, key) => ({...lines, [key]: emptyVatLine()}), {} as Record<VatLineKey, VatLineDraft>);
+}
+
+function emptyVatDraft(): VatDraft {
+  return {
+    companyName: '',
+    periodFrom: todayIsoDate(),
+    periodTo: todayIsoDate(),
+    lines: emptyVatLines(),
+    previousCorrections: '',
+    carriedVat: '',
+    notes: '',
+  };
+}
+
+function amountValue(value: string | number | undefined) {
+  return Number(String(value || '0').replace(/,/g, '')) || 0;
+}
+
+function ensureVatLines(draft: VatDraft): Record<VatLineKey, VatLineDraft> {
+  const current = draft.lines || {} as Record<VatLineKey, VatLineDraft>;
+  const legacyValues: Partial<Record<VatLineKey, VatLineDraft>> = {
+    line1: {amount: String((draft as unknown as {salesStandard?: string}).salesStandard || ''), adjustment: String((draft as unknown as {salesAdjustments?: string}).salesAdjustments || '')},
+    line3: {amount: String((draft as unknown as {salesZero?: string}).salesZero || ''), adjustment: ''},
+    line5: {amount: String((draft as unknown as {salesExempt?: string}).salesExempt || ''), adjustment: ''},
+    line7: {amount: String((draft as unknown as {purchasesStandard?: string}).purchasesStandard || ''), adjustment: String((draft as unknown as {purchaseAdjustments?: string}).purchaseAdjustments || '')},
+    line8: {amount: String((draft as unknown as {purchasesReduced?: string}).purchasesReduced || ''), adjustment: ''},
+    line11: {amount: String((draft as unknown as {purchasesExempt?: string}).purchasesExempt || ''), adjustment: ''},
+  };
+  return VAT_LINE_KEYS.reduce((lines, key) => ({...lines, [key]: {...emptyVatLine(), ...(legacyValues[key] || {}), ...(current[key] || {})}}), {} as Record<VatLineKey, VatLineDraft>);
+}
+
+function calculateVatLine(line: VatLineDraft, rate: number) {
+  const amount = amountValue(line.amount);
+  const adjustment = amountValue(line.adjustment);
+  return {amount, adjustment, tax: rate ? (amount + adjustment) * rate / 100 : 0};
+}
+
+function calculateVat(draft: VatDraft) {
+  const lines = ensureVatLines(draft);
+  const lineTotals = VAT_RETURN_ROWS.reduce((totals, row) => {
+    if (!row.editable) return totals;
+    totals[row.key as VatLineKey] = calculateVatLine(lines[row.key as VatLineKey], row.rate);
+    return totals;
+  }, {} as Record<VatLineKey, {amount: number; adjustment: number; tax: number}>);
+  const salesKeys: VatLineKey[] = ['line1', 'line2', 'line3', 'line4', 'line5'];
+  const purchaseKeys: VatLineKey[] = ['line7', 'line8', 'line9', 'line10', 'line11'];
+  const sumKeys = (keys: VatLineKey[]) => keys.reduce((total, key) => ({
+    amount: total.amount + (lineTotals[key]?.amount || 0),
+    adjustment: total.adjustment + (lineTotals[key]?.adjustment || 0),
+    tax: total.tax + (lineTotals[key]?.tax || 0),
+  }), {amount: 0, adjustment: 0, tax: 0});
+  const salesTotal = sumKeys(salesKeys);
+  const purchasesTotal = sumKeys(purchaseKeys);
+  const periodTax = salesTotal.tax - purchasesTotal.tax;
+  const previousCorrections = amountValue(draft.previousCorrections);
+  const carriedVat = amountValue(draft.carriedVat);
+  const netTax = periodTax + previousCorrections - carriedVat;
+  return {lines: lineTotals, salesTotal, purchasesTotal, periodTax, previousCorrections, carriedVat, netTax};
+}
+
+function vatReportDate(record: VatDraft) {
+  const raw = record.periodFrom || record.periodTo || record.savedAt || '';
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function vatReportPeriod(record: VatDraft, range: VatReportRange) {
+  const date = vatReportDate(record);
+  if (!date) return {label: 'بدون تاريخ', sortKey: '0000-00'};
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  if (range === 'month') {
+    const label = new Intl.DateTimeFormat('ar-SA', {month: 'long', year: 'numeric'}).format(date);
+    return {label, sortKey: `${year}-${String(month + 1).padStart(2, '0')}`};
+  }
+  if (range === 'year') return {label: `السنة ${year}`, sortKey: `${year}-12`};
+  if (range === 'half') {
+    const half = month < 6 ? 1 : 2;
+    return {label: `النصف ${half} - ${year}`, sortKey: `${year}-H${half}`};
+  }
+  const quarter = Math.floor(month / 3) + 1;
+  return {label: `الربع ${quarter} - ${year}`, sortKey: `${year}-Q${quarter}`};
+}
+
+// ===== VAT archive draft and report state | src/App.tsx:4336-4341 =====
+  const [vatRecords, setVatRecords] = usePersistentState<VatDraft[]>('bayyinah-vat-records', []);
+  const [vatDraft, setVatDraft] = useState<VatDraft>(emptyVatDraft());
+  const [vatReportRange, setVatReportRange] = useState<VatReportRange>('month');
+  const [vatReportMode, setVatReportMode] = useState<VatReportMode>('summary');
+  const [vatReportFrom, setVatReportFrom] = useState(() => `${new Date().getFullYear()}-01-01`);
+  const [vatReportTo, setVatReportTo] = useState(todayIsoDate());
+
+// ===== Save open duplicate Excel export and grouped reports | src/App.tsx:4354-4525 =====
+  const vatTotals = calculateVat(vatDraft);
+  function setVatField(field: keyof VatDraft, value: string) {
+    setVatDraft((current) => ({...current, [field]: value}));
+  }
+  function saveVatRecord() {
+    const built = {...vatDraft, id: vatDraft.id || `vat-${Date.now()}`, savedAt: new Date().toISOString()};
+    setVatRecords((records) => [built, ...records.filter((record) => record.id !== built.id)]);
+    setVatDraft(built);
+  }
+  function openVatRecord(record: VatDraft) {
+    setVatDraft(record);
+  }
+  function duplicateVatRecord(record: VatDraft) {
+    setVatDraft({...record, id: '', periodFrom: todayIsoDate(), periodTo: todayIsoDate(), savedAt: undefined});
+  }
+
+  async function exportVatExcel() {
+    const XLSX = await import('xlsx');
+    const source = {...vatDraft, lines: ensureVatLines(vatDraft)};
+    const totals = calculateVat(source);
+    const getTotals = (row: VatReturnRow) => {
+      if (row.key === 'line6') return totals.salesTotal;
+      if (row.key === 'line12') return totals.purchasesTotal;
+      return totals.lines[row.key as VatLineKey] || {amount: 0, adjustment: 0, tax: 0};
+    };
+    const netStatus = totals.netTax > 0 ? 'ضريبة مستحقة' : totals.netTax < 0 ? 'ضريبة مستردة' : 'لا توجد ضريبة مستحقة أو مستردة';
+    const rows = [
+      ['نموذج إقرار ضريبة القيمة المضافة - VAT Return Form 3A'],
+      ['اسم الشركة', source.companyName || 'غير محدد'],
+      ['الفترة من', source.periodFrom || 'غير محدد'],
+      ['الفترة إلى', source.periodTo || 'غير محدد'],
+      ['تاريخ التصدير', new Intl.DateTimeFormat('ar-SA').format(new Date())],
+      [],
+      ['القسم', 'رقم البند', 'البند', 'المبلغ', 'مبلغ التعديل', 'مبلغ ضريبة القيمة المضافة'],
+      ...VAT_RETURN_ROWS.map((row) => {
+        const rowTotals = getTotals(row);
+        return [
+          row.section === 'sales' ? 'ضريبة القيمة المضافة على المبيعات' : 'ضريبة القيمة المضافة على المشتريات',
+          row.number,
+          row.label,
+          rowTotals.amount,
+          rowTotals.adjustment,
+          rowTotals.tax,
+        ];
+      }),
+      [],
+      ['ملخص الضريبة'],
+      ['13', 'إجمالي ضريبة القيمة المضافة المستحقة للفترة الحالية', totals.periodTax],
+      ['14', 'تصحيحات من الفترات السابقة', totals.previousCorrections],
+      ['15', 'ضريبة القيمة المضافة المرحلة من الفترات السابقة', totals.carriedVat],
+      ['16', 'صافي الضريبة المستحقة أو المستردة', totals.netTax, netStatus],
+      [],
+      ['ملاحظات', source.notes || 'لا توجد ملاحظات'],
+    ];
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    worksheet['!cols'] = [{wch: 34}, {wch: 14}, {wch: 58}, {wch: 18}, {wch: 18}, {wch: 24}];
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'إقرار VAT 3A');
+    const safeCompany = (source.companyName || 'VAT').replace(/[\\/:*?"<>|]/g, '-').slice(0, 40);
+    XLSX.writeFile(workbook, `Bayyinah-VAT-3A-${safeCompany}-${todayIsoDate()}.xlsx`);
+  }
+
+  const vatReportRows = vatRecords
+    .map((record) => {
+      const normalized = {...record, lines: ensureVatLines(record)};
+      const totals = calculateVat(normalized);
+      const period = vatReportPeriod(normalized, vatReportRange);
+      const reportDate = vatReportDate(normalized);
+      return {record: normalized, totals, period, reportDate};
+    })
+    .filter((item) => {
+      if (!item.reportDate) return false;
+      const from = vatReportFrom ? new Date(`${vatReportFrom}T00:00:00`) : null;
+      const to = vatReportTo ? new Date(`${vatReportTo}T23:59:59`) : null;
+      return (!from || item.reportDate >= from) && (!to || item.reportDate <= to);
+    })
+    .sort((a, b) => a.period.sortKey.localeCompare(b.period.sortKey) || String(a.record.periodFrom || '').localeCompare(String(b.record.periodFrom || '')));
+  const vatReportGroups = Object.values(vatReportRows.reduce((groups, item) => {
+    const current = groups[item.period.label] || {
+      label: item.period.label,
+      sortKey: item.period.sortKey,
+      count: 0,
+      salesAmount: 0,
+      purchaseAmount: 0,
+      salesTax: 0,
+      purchaseTax: 0,
+      periodTax: 0,
+      previousCorrections: 0,
+      carriedVat: 0,
+      netTax: 0,
+    };
+    current.count += 1;
+    current.salesAmount += item.totals.salesTotal.amount;
+    current.purchaseAmount += item.totals.purchasesTotal.amount;
+    current.salesTax += item.totals.salesTotal.tax;
+    current.purchaseTax += item.totals.purchasesTotal.tax;
+    current.periodTax += item.totals.periodTax;
+    current.previousCorrections += item.totals.previousCorrections;
+    current.carriedVat += item.totals.carriedVat;
+    current.netTax += item.totals.netTax;
+    groups[item.period.label] = current;
+    return groups;
+  }, {} as Record<string, {
+    label: string;
+    sortKey: string;
+    count: number;
+    salesAmount: number;
+    purchaseAmount: number;
+    salesTax: number;
+    purchaseTax: number;
+    periodTax: number;
+    previousCorrections: number;
+    carriedVat: number;
+    netTax: number;
+  }>)).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  const vatReportSummary = vatReportGroups.reduce((summary, item) => ({
+    count: summary.count + item.count,
+    salesAmount: summary.salesAmount + item.salesAmount,
+    purchaseAmount: summary.purchaseAmount + item.purchaseAmount,
+    salesTax: summary.salesTax + item.salesTax,
+    purchaseTax: summary.purchaseTax + item.purchaseTax,
+    periodTax: summary.periodTax + item.periodTax,
+    netTax: summary.netTax + item.netTax,
+  }), {count: 0, salesAmount: 0, purchaseAmount: 0, salesTax: 0, purchaseTax: 0, periodTax: 0, netTax: 0});
+  const vatReportTableRows = [
+    {label: 'إجمالي المبيعات', values: vatReportGroups.map((group) => group.salesAmount), total: vatReportSummary.salesAmount},
+    {label: 'إجمالي المشتريات', values: vatReportGroups.map((group) => group.purchaseAmount), total: vatReportSummary.purchaseAmount},
+    {label: 'وعاء الضريبة', values: vatReportGroups.map((group) => group.salesAmount - group.purchaseAmount), total: vatReportSummary.salesAmount - vatReportSummary.purchaseAmount},
+    {label: 'إجمالي ضريبة القيمة المضافة المستحقة للفترة الحالية', values: vatReportGroups.map((group) => group.periodTax), total: vatReportSummary.periodTax},
+    {label: 'صافي الضريبة المستحقة أو المستردة', values: vatReportGroups.map((group) => group.netTax), total: vatReportSummary.netTax},
+  ];
+  const getVatStatus = (value: number) => value > 0 ? 'ضريبة مستحقة' : value < 0 ? 'ضريبة مستردة' : 'لا توجد ضريبة مستحقة أو مستردة';
+
+  async function exportVatArchiveExcel() {
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.utils.book_new();
+    const rangeLabel = vatReportRange === 'year' ? 'سنوي' : vatReportRange === 'half' ? 'نصف سنوي' : vatReportRange === 'quarter' ? 'ربع سنوي' : 'شهري';
+    const matrixRows = [
+      ['تقرير ضريبة القيمة المضافة حسب الفترة'],
+      [`الفترة من: ${vatReportFrom || 'غير محدد'} حتى: ${vatReportTo || 'غير محدد'}`],
+      [`نوع التجميع: ${rangeLabel}`, `عدد السجلات: ${vatReportSummary.count}`, `الحالة: ${getVatStatus(vatReportSummary.netTax)}`],
+      [],
+      ['التفاصيل', ...vatReportGroups.map((group) => group.label), 'الإجمالي'],
+      ...vatReportTableRows.map((row) => [row.label, ...row.values, row.total]),
+    ];
+    const detailRows = vatReportRows.flatMap(({record, totals}) => VAT_RETURN_ROWS.map((row) => {
+      const rowTotals = row.key === 'line6'
+        ? totals.salesTotal
+        : row.key === 'line12'
+          ? totals.purchasesTotal
+          : totals.lines[row.key as VatLineKey] || {amount: 0, adjustment: 0, tax: 0};
+      return {
+        'فترة التقرير': vatReportPeriod(record, vatReportRange).label,
+        'اسم الشركة': record.companyName || 'غير محدد',
+        'الفترة من': record.periodFrom || '',
+        'الفترة إلى': record.periodTo || '',
+        'القسم': row.section === 'sales' ? 'المبيعات' : 'المشتريات',
+        'رقم البند': row.number,
+        'البند': row.label,
+        'المبلغ': rowTotals.amount,
+        'مبلغ التعديل': rowTotals.adjustment,
+        'مبلغ الضريبة': rowTotals.tax,
+      };
+    }));
+    const summarySheet = XLSX.utils.aoa_to_sheet(matrixRows);
+    const detailSheet = XLSX.utils.json_to_sheet(detailRows);
+    summarySheet['!cols'] = [{wch: 54}, {wch: 16}, ...vatReportGroups.map(() => ({wch: 16})), {wch: 18}];
+    detailSheet['!cols'] = [{wch: 18}, {wch: 28}, {wch: 14}, {wch: 14}, {wch: 14}, {wch: 10}, {wch: 58}, {wch: 16}, {wch: 16}, {wch: 16}];
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'تقرير مجمع');
+    XLSX.utils.book_append_sheet(workbook, detailSheet, 'تفاصيل البنود');
+    XLSX.writeFile(workbook, `Bayyinah-VAT-Report-${vatReportRange}-${todayIsoDate()}.xlsx`);
+  }
+
+// ===== VAT entry summary archive and period-report interface | src/App.tsx:4724-4895 =====
+    if (activeTool === 'vat') {
+      const lines = ensureVatLines(vatDraft);
+      const getRowTotals = (row: VatReturnRow) => {
+        if (row.key === 'line6') return vatTotals.salesTotal;
+        if (row.key === 'line12') return vatTotals.purchasesTotal;
+        return vatTotals.lines[row.key as VatLineKey] || {amount: 0, adjustment: 0, tax: 0};
+      };
+      const updateVatLine = (key: VatLineKey, field: keyof VatLineDraft, value: string) => {
+        setVatDraft((current) => {
+          const currentLines = ensureVatLines(current);
+          return {...current, lines: {...currentLines, [key]: {...currentLines[key], [field]: value}}};
+        });
+      };
+      const netLabel = vatTotals.netTax > 0 ? 'ضريبة مستحقة' : vatTotals.netTax < 0 ? 'ضريبة مستردة' : 'لا توجد ضريبة مستحقة أو مستردة';
+      return (
+        <div className="vat-tool vat-return-tool">
+          <section className="vat-return-note tool-warning info"><AlertTriangle /> أداة مساعدة لحساب ومراجعة إقرار ضريبة القيمة المضافة، ولا تغني عن مراجعة المحاسب أو الإقرار الرسمي.</section>
+          <section className="vat-return-head panel">
+            <div>
+              <small>VAT Return Form - 3A</small>
+              <h3>نموذج إقرار ضريبة القيمة المضافة</h3>
+            </div>
+            <div className="vat-return-meta">
+              <label>اسم الشركة<input onChange={(event) => setVatField('companyName', event.target.value)} value={vatDraft.companyName} /></label>
+              <label>الفترة من<CalendarDateInput value={vatDraft.periodFrom} onChange={(value) => setVatField('periodFrom', value)} /></label>
+              <label>الفترة إلى<CalendarDateInput value={vatDraft.periodTo} onChange={(value) => setVatField('periodTo', value)} /></label>
+            </div>
+          </section>
+
+          <section className="panel vat-return-table">
+            <div className="vat-return-row vat-return-header">
+              <span>البند</span>
+              <span>المبلغ</span>
+              <span>المبلغ (±)</span>
+              <span>مبلغ التعديل (±)</span>
+              <span>مبلغ ضريبة القيمة المضافة (±)</span>
+            </div>
+            <div className="vat-section-title">ضريبة القيمة المضافة على المبيعات</div>
+            {VAT_RETURN_ROWS.filter((row) => row.section === 'sales').map((row) => {
+              const totals = getRowTotals(row);
+              const key = row.key as VatLineKey;
+              return (
+                <div className={row.editable ? 'vat-return-row' : 'vat-return-row vat-total-row'} key={row.key}>
+                  <b>{row.number}</b>
+                  <span>{row.label}</span>
+                  {row.editable ? <input onChange={(event) => updateVatLine(key, 'amount', event.target.value)} type="number" value={lines[key].amount} /> : <output>{formatCurrency(totals.amount.toFixed(2))}</output>}
+                  {row.editable ? <input onChange={(event) => updateVatLine(key, 'adjustment', event.target.value)} type="number" value={lines[key].adjustment} /> : <output>{formatCurrency(totals.adjustment.toFixed(2))}</output>}
+                  <output>{formatCurrency(totals.tax.toFixed(2))}</output>
+                </div>
+              );
+            })}
+            <div className="vat-section-title purchases">ضريبة القيمة المضافة على المشتريات</div>
+            {VAT_RETURN_ROWS.filter((row) => row.section === 'purchases').map((row) => {
+              const totals = getRowTotals(row);
+              const key = row.key as VatLineKey;
+              return (
+                <div className={row.editable ? 'vat-return-row' : 'vat-return-row vat-total-row'} key={row.key}>
+                  <b>{row.number}</b>
+                  <span>{row.label}</span>
+                  {row.editable ? <input onChange={(event) => updateVatLine(key, 'amount', event.target.value)} type="number" value={lines[key].amount} /> : <output>{formatCurrency(totals.amount.toFixed(2))}</output>}
+                  {row.editable ? <input onChange={(event) => updateVatLine(key, 'adjustment', event.target.value)} type="number" value={lines[key].adjustment} /> : <output>{formatCurrency(totals.adjustment.toFixed(2))}</output>}
+                  <output>{formatCurrency(totals.tax.toFixed(2))}</output>
+                </div>
+              );
+            })}
+          </section>
+
+          <section className="panel vat-return-summary">
+            <div><small>13. إجمالي ضريبة القيمة المضافة المستحقة للفترة الحالية</small><strong>{formatCurrency(vatTotals.periodTax.toFixed(2))}</strong></div>
+            <label>14. تصحيحات من الفترات السابقة<input onChange={(event) => setVatField('previousCorrections', event.target.value)} type="number" value={vatDraft.previousCorrections} /></label>
+            <label>15. ضريبة القيمة المضافة المرحلة من الفترات السابقة<input onChange={(event) => setVatField('carriedVat', event.target.value)} type="number" value={vatDraft.carriedVat} /></label>
+            <div><small>16. صافي الضريبة المستحقة أو المستردة</small><strong className={vatTotals.netTax > 0 ? 'danger-text' : vatTotals.netTax < 0 ? 'ok-text' : ''}>{netLabel}: {formatCurrency(Math.abs(vatTotals.netTax).toFixed(2))}</strong></div>
+            <label className="vat-summary-notes">ملاحظات<textarea onChange={(event) => setVatField('notes', event.target.value)} value={vatDraft.notes} /></label>
+            <div className="card-actions">
+              <Btn onClick={saveVatRecord}><FileCheck2 /> حفظ السجل</Btn>
+              <Btn kind="outline" onClick={() => void exportVatExcel()}><FileDown /> تصدير Excel</Btn>
+              <Btn kind="outline" onClick={() => setVatDraft(emptyVatDraft())}><Plus /> إعادة تعيين</Btn>
+            </div>
+          </section>
+
+          <section className="panel vat-archive">
+            <h3>أرشيف إقرارات ضريبة القيمة المضافة</h3>
+            {vatRecords.length ? vatRecords.map((record) => {
+              const totals = calculateVat(record);
+              return (
+                <article key={record.id}>
+                  <div>
+                    <b>{record.companyName || 'شركة غير محددة'}</b>
+                    <small>{record.periodFrom} ← {record.periodTo}</small>
+                    <small>{totals.netTax > 0 ? 'ضريبة مستحقة' : totals.netTax < 0 ? 'ضريبة مستردة' : 'لا توجد ضريبة مستحقة أو مستردة'}: {formatCurrency(Math.abs(totals.netTax).toFixed(2))}</small>
+                  </div>
+                  <div>
+                    <Btn kind="outline" onClick={() => openVatRecord({...record, lines: ensureVatLines(record)})}>فتح السجل</Btn>
+                    <Btn kind="outline" onClick={() => duplicateVatRecord({...record, lines: ensureVatLines(record)})}><Copy /> تكرار</Btn>
+                  </div>
+                </article>
+              );
+            }) : <small>لا توجد سجلات محفوظة بعد.</small>}
+          </section>
+
+          <section className="panel vat-period-report">
+            <header>
+              <div>
+                <small>تقرير مجمع من أرشيف الإقرارات</small>
+                <h3>تقرير ضريبة القيمة المضافة حسب الفترة</h3>
+              </div>
+              <div className="vat-report-actions">
+                <label>من<input onChange={(event) => setVatReportFrom(event.target.value)} type="date" value={vatReportFrom} /></label>
+                <label>إلى<input onChange={(event) => setVatReportTo(event.target.value)} type="date" value={vatReportTo} /></label>
+                <select onChange={(event) => setVatReportRange(event.target.value as VatReportRange)} value={vatReportRange}>
+                  <option value="month">شهري</option>
+                  <option value="quarter">ربع سنوي</option>
+                  <option value="half">نصف سنوي</option>
+                  <option value="year">سنوي</option>
+                </select>
+                <select onChange={(event) => setVatReportMode(event.target.value as VatReportMode)} value={vatReportMode}>
+                  <option value="summary">إجمالي فقط</option>
+                  <option value="detail">إجمالي + تفاصيل</option>
+                </select>
+                <Btn kind="outline" onClick={() => { if (vatReportRows.length) void exportVatArchiveExcel(); }}><FileDown /> تصدير تقرير Excel</Btn>
+              </div>
+            </header>
+            <div className="vat-report-titlebar">
+              <b>للفترة من: {vatReportFrom || 'غير محدد'} حتى: {vatReportTo || 'غير محدد'}</b>
+              <span>{vatReportSummary.count} سجل · {getVatStatus(vatReportSummary.netTax)}</span>
+            </div>
+            {vatReportGroups.length ? (
+              <div className="vat-report-table-wrap">
+                <table className="vat-report-table">
+                  <thead>
+                    <tr>
+                      <th>التفاصيل</th>
+                      {vatReportGroups.map((group) => <th key={group.label}>{group.label}</th>)}
+                      <th>الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vatReportTableRows.map((row) => (
+                      <tr key={row.label}>
+                        <th>{row.label}</th>
+                        {row.values.map((value, index) => (
+                          <td className={value < 0 ? 'negative-cell' : ''} key={`${row.label}-${vatReportGroups[index]?.label || index}`}>
+                            {formatCurrency(value.toFixed(2))}
+                          </td>
+                        ))}
+                        <td className={row.total < 0 ? 'total-cell negative-cell' : 'total-cell'}>{formatCurrency(row.total.toFixed(2))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="empty-lite">لا توجد سجلات محفوظة ضمن الفترة المحددة لإنشاء التقرير.</p>}
+            {vatReportMode === 'detail' ? (
+              <div className="vat-period-detail">
+                {vatReportRows.length ? vatReportRows.map(({record, totals, period}) => (
+                  <article key={record.id || `${record.periodFrom}-${record.periodTo}`}>
+                    <div>
+                      <b>{record.companyName || 'شركة غير محددة'}</b>
+                      <small>{period.label} · {record.periodFrom || 'بدون بداية'} ← {record.periodTo || 'بدون نهاية'}</small>
+                    </div>
+                    <small>ضريبة المبيعات: {formatCurrency(totals.salesTotal.tax.toFixed(2))}</small>
+                    <small>ضريبة المشتريات: {formatCurrency(totals.purchasesTotal.tax.toFixed(2))}</small>
+                    <span>{getVatStatus(totals.netTax)}</span>
+                    <strong className={totals.netTax > 0 ? 'danger-text' : totals.netTax < 0 ? 'ok-text' : ''}>{formatCurrency(Math.abs(totals.netTax).toFixed(2))}</strong>
+                  </article>
+                )) : <p className="empty-lite">لا توجد سجلات محفوظة للعرض التفصيلي.</p>}
+              </div>
+            ) : null}
+          </section>
+        </div>
+      );
+    }

@@ -1,0 +1,381 @@
+{
+  "project": "bayyinah-qadiyati",
+  "version": "1.0.12",
+  "extractedAt": "2026-11-25T17:03:14.903Z",
+  "sources": [
+    {
+      "path": "src/App.tsx",
+      "sha256": "e783b902a47286e7e9761b26f80a9bbb106baed0920e4ff2aa4c4d1fa039befc"
+    },
+    {
+      "path": "electron/main.cjs",
+      "sha256": "260827eb32e0270bd3eadae5e3e358855917e0d867c6c4486f75a6d208bf1b08"
+    },
+    {
+      "path": "electron/preload.cjs",
+      "sha256": "cf3d92bfeb3d34a69221ab057b254c016b32e9a1ac4618b065360ae700ae6d98"
+    }
+  ],
+  "blocks": [
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 88,
+      "end": 89,
+      "label": "Priority and status types",
+      "contentSha256": "7b274e7fef93b99992869604725f8615b20901cdeab46bdefb9736b9dbbdba04"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 119,
+      "end": 150,
+      "label": "Task and parent case models",
+      "contentSha256": "6c1f805e204b1b5a674c0e3ba0f3a282ed23959750184ee426e01ae87290bd39"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 295,
+      "end": 296,
+      "label": "Priority and status order",
+      "contentSha256": "1e5469213b65631cad31100f051860b3e5e9156cc4b7ead4db3c2a34d93b82f0"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 949,
+      "end": 957,
+      "label": "Dashboard reminder days",
+      "contentSha256": "ecae05c03a24cf64903e60c633757d6e609e5ee209c597aeee591c680d3ffe92"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 971,
+      "end": 976,
+      "label": "Priority colors",
+      "contentSha256": "c63437487a143c4b1d69ce93c38a5075414c17626cfa46cdf45ccf154c395392"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 1040,
+      "end": 1063,
+      "label": "Case normalization",
+      "contentSha256": "a27775e3004be371385bcd66eef697ecf6bbb9b9333cb3361765164ceac98151"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 1487,
+      "end": 1488,
+      "label": "Header reminder setting guard",
+      "contentSha256": "858bd5e79f4610452a460c703559f74cfeb7de38a0b49a0c13e96ba0e641e130"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 1501,
+      "end": 1512,
+      "label": "Header task notifications",
+      "contentSha256": "80fcde67cab397556f98ddc18d138158b8430a34cea559212aac0e7d5cfa6263"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 1749,
+      "end": 1750,
+      "label": "Dashboard open-task count",
+      "contentSha256": "5aa9e45b294ae61a65e8858cdfd65f666582cc807141ed58910f61c0698c101f"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 1786,
+      "end": 1794,
+      "label": "Dashboard task reminders",
+      "contentSha256": "c5093b0488c803b24ec45a0a6bab43a507b040a559921a6f74bcfca085329c04"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 2083,
+      "end": 2091,
+      "label": "Case task form defaults",
+      "contentSha256": "5051bd707601a92b2ee0fe74967b9318fa6fa723862697235d0dbf4d640a3e97"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 2103,
+      "end": 2106,
+      "label": "Case task summary",
+      "contentSha256": "51190c53b06a893d228cc82f3a829b767ac22d69561a4ff7695cde6dd76caaf1"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 2115,
+      "end": 2135,
+      "label": "Hearing updates nextTask",
+      "contentSha256": "cbd986eb5bee1f3383c829b28567c896d0821a34282872a0ddf97a6b9ca71968"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 2150,
+      "end": 2175,
+      "label": "Case task create edit delete",
+      "contentSha256": "60c8d53cff76486e6e4463edc3b4d26f3ebac4e84e894d28c22e155b04be11f6"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 2454,
+      "end": 2481,
+      "label": "Case task user interface",
+      "contentSha256": "8a5af3e5f2df6125f5bd59410add80638003dba6f334e1b5c79957b0b772209d"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 2960,
+      "end": 2969,
+      "label": "Unified calendar task events",
+      "contentSha256": "94aa54e5c8f18359d79a8ecbe79bae5011dc94b8246cc58f90923d3d75da8dd9"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 3030,
+      "end": 3043,
+      "label": "Calendar hearing updates nextTask",
+      "contentSha256": "aad2870f93f3393cc3682b3a049990e6aa96380a1c131bba5f651dc691568cde"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 3254,
+      "end": 3488,
+      "label": "Complete central tasks page",
+      "contentSha256": "5c1ead9fc63cba0fa0d028323991ab05ce0993e002d10a3e67a9ae9e6a43aaf4"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 4334,
+      "end": 4335,
+      "label": "Independent quick-task state",
+      "contentSha256": "3e79f086f1036e95cf52e7612a15d3fd44f978cf3041e2a2692d194ca5dc46a2"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 4710,
+      "end": 4722,
+      "label": "Quick-task add delete interface",
+      "contentSha256": "284b65d633832f6cc48a5e0bbcc9212755a855b88c6e6468de40eab2854996fc"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 6255,
+      "end": 6272,
+      "label": "Automatic task when creating a case",
+      "contentSha256": "e555703547f574b9077c57e0784ba177ab947db0cf7b5ff1623785968b68ffdf"
+    },
+    {
+      "output": "tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 6302,
+      "end": 6305,
+      "label": "Case updater",
+      "contentSha256": "6867b9cf0c4076d2068a53bc8140a662c990b77d2f2940f3a9d4b5545f7165c1"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 208,
+      "end": 246,
+      "label": "Monitoring item model including general tasks",
+      "contentSha256": "8e45137eb4205830c58d52ad112182b1f44cec01fe44bd68cf6809ac65e916ca"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 297,
+      "end": 301,
+      "label": "Monitoring types and reminder offsets",
+      "contentSha256": "b9973f610653c1d5e34cfa2326a843b3af766057ea79df66bb62fb7f250b1cea"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 312,
+      "end": 342,
+      "label": "Monitoring defaults",
+      "contentSha256": "744a2bb3341245623de893b99bdaf99932c0e035611cd677a90c391368e53805"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 914,
+      "end": 941,
+      "label": "General-task derived status and normalization",
+      "contentSha256": "b6af7987af7a9dd3005d6b494f06270fbfd7369172d5eb757f6ac4fad7c832e2"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 3490,
+      "end": 3596,
+      "label": "Monitoring filter save renew delete complete",
+      "contentSha256": "e4fecb6af5a8ed3613ea8e6da779e0937ee8114cfe846197f03d554f9fbab952"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 3649,
+      "end": 3655,
+      "label": "General-task priority input",
+      "contentSha256": "77e9c8af22c85c6c3f58ee435c0edddaa832d4b9e75f1552017ca3fa5b9b700d"
+    },
+    {
+      "output": "general-tasks.source.txt",
+      "source": "src/App.tsx",
+      "start": 6115,
+      "end": 6189,
+      "label": "Scheduled reminders: hearings and monitoring; no case-task loop",
+      "contentSha256": "89971505a7463511f13a9ebde0e474366657f71474d70488b50a570e69f12ec7"
+    },
+    {
+      "output": "vat.source.txt",
+      "source": "src/App.tsx",
+      "start": 4143,
+      "end": 4289,
+      "label": "VAT types rows normalization calculation and period classification",
+      "contentSha256": "3df3f5655fd2cf18ae70403cd314c54b16bbe3c21b46c1e1d8a660a5a314ebee"
+    },
+    {
+      "output": "vat.source.txt",
+      "source": "src/App.tsx",
+      "start": 4336,
+      "end": 4341,
+      "label": "VAT archive draft and report state",
+      "contentSha256": "01293dafcb6d9ace895d4125277e2145cc8f94939f67a931910cdbb47ae59572"
+    },
+    {
+      "output": "vat.source.txt",
+      "source": "src/App.tsx",
+      "start": 4354,
+      "end": 4525,
+      "label": "Save open duplicate Excel export and grouped reports",
+      "contentSha256": "d4c429501a116ae69202c0c1f2fc198912965a1130ce9088b7005e9d3b35229a"
+    },
+    {
+      "output": "vat.source.txt",
+      "source": "src/App.tsx",
+      "start": 4724,
+      "end": 4895,
+      "label": "VAT entry summary archive and period-report interface",
+      "contentSha256": "7b13e1acd10f2f51b9472b31ec4ee2e8e59986e9d15ce9e4cea9196581569c90"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 553,
+      "end": 615,
+      "label": "Persistent state: browser and Electron",
+      "contentSha256": "bdad04321a8f5a88b0ac547c5d402addb3c16d85c0fccc10032a9512d7891195"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 874,
+      "end": 892,
+      "label": "Shared dates",
+      "contentSha256": "901589169527c6d97d621e59ac55fee284c5eefe056308c6df4e1fff0347c5c4"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 5988,
+      "end": 5994,
+      "label": "Storage keys used by case and monitoring tasks",
+      "contentSha256": "7308c86a73f63501eb23a742555b3442414577f5daabc92709b5bc4a55406e19"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "electron/main.cjs",
+      "start": 202,
+      "end": 212,
+      "label": "Deferred SQLite disk persistence",
+      "contentSha256": "12aa8c1ca3d39e52295fe278e8bd66f0bcd8c59fe24c089af569f94569e62eac"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "electron/main.cjs",
+      "start": 262,
+      "end": 273,
+      "label": "Payload encryption and decoding",
+      "contentSha256": "353f6e02a60a2ddc5339ba53b9586f4d4588992cd60f83022350f634a07d6f78"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "electron/main.cjs",
+      "start": 275,
+      "end": 304,
+      "label": "SQLite location and records schema",
+      "contentSha256": "cc7214873c85c017e5740d5d875a42b15cba6ebdbeb1b92483805cd5deb4013e"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "electron/main.cjs",
+      "start": 351,
+      "end": 381,
+      "label": "Storage read write export IPC",
+      "contentSha256": "380c357fc57a92079cfe049eca7e8bf01bdff22fbced753dbad92dc75448c1a2"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "electron/preload.cjs",
+      "start": 1,
+      "end": 13,
+      "label": "Renderer storage bridge",
+      "contentSha256": "437e674cb2a2dc5fb4be57c80f7a4d650e4f6e772a176ec6a2dc6b173bdf8bd6"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 1214,
+      "end": 1220,
+      "label": "Page permissions",
+      "contentSha256": "b5acb617e7011c395760b008537a0e26a7d6d00be647cbcd179d845024d50620"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 6013,
+      "end": 6021,
+      "label": "Current all-admin upgrade behavior",
+      "contentSha256": "00fc52bc343769bd0f93ddcb8db290af54d07dd5ab49a959b1ce8490cb529f6e"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 6454,
+      "end": 6456,
+      "label": "Page access selection",
+      "contentSha256": "34873b7094e2c2799b46dbf58e36823bfd4ad56a26432159ac64516b1f293ec8"
+    },
+    {
+      "output": "persistence.source.txt",
+      "source": "src/App.tsx",
+      "start": 6521,
+      "end": 6525,
+      "label": "Page integration",
+      "contentSha256": "9e798b139721fec93ce5c30e4ab68974091f6b63f0b02056e122694b6a6d851a"
+    }
+  ]
+}

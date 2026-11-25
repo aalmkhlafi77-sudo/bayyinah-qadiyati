@@ -1,0 +1,236 @@
+Original source excerpts. Context fragments are not standalone modules.
+UTF-8; original line ranges are included before each block.
+
+// ===== Persistent state: browser and Electron | src/App.tsx:553-615 =====
+function usePersistentState<T>(key: string, initialValue: T) {
+  const localStorageHadValue = useRef(typeof window !== 'undefined' && window.localStorage.getItem(key) !== null);
+  const [state, setState] = useState<T>(() => {
+    if (typeof window === 'undefined') return initialValue;
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return initialValue;
+    try {
+      return JSON.parse(saved) as T;
+    } catch {
+      return initialValue;
+    }
+  });
+  const initialState = useRef(state);
+  const desktopLoaded = useRef(!window.bayyinahDesktop);
+  const [loaded, setLoaded] = useState(!window.bayyinahDesktop);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    const desktop = window.bayyinahDesktop;
+    if (!desktop) return;
+    let cancelled = false;
+    desktopLoaded.current = false;
+    setLoaded(false);
+    setLoadError(false);
+
+    void desktop.storage.get<T>(key).then(async (stored) => {
+      if (cancelled) return;
+      if (stored === null) {
+        await desktop.storage.set(key, initialState.current);
+      } else {
+        setState(stored);
+      }
+      desktopLoaded.current = true;
+      setLoaded(true);
+    }).catch(() => {
+      if (cancelled) return;
+      if (key === 'bayyinah-users' && localStorageHadValue.current) {
+        void desktop.storage.set(key, initialState.current);
+        desktopLoaded.current = true;
+        setLoaded(true);
+        return;
+      }
+      desktopLoaded.current = true;
+      setLoadError(true);
+      setLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  useEffect(() => {
+    const desktop = window.bayyinahDesktop;
+    if (desktop) {
+      if (desktopLoaded.current) void desktop.storage.set(key, state);
+      return;
+    }
+    window.localStorage.setItem(key, JSON.stringify(state));
+  }, [key, state]);
+
+  return [state, setState, loaded, loadError] as const;
+}
+
+// ===== Shared dates | src/App.tsx:874-892 =====
+function getDaysUntil(date: string) {
+  if (!date) return Number.POSITIVE_INFINITY;
+  const target = new Date(date);
+  const today = new Date();
+  target.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function todayIsoDate() {
+  return toIsoDate(new Date());
+}
+
+// ===== Storage keys used by case and monitoring tasks | src/App.tsx:5988-5994 =====
+  const [cases, setCases] = usePersistentState<CaseRecord[]>('bayyinah-cases', seedCases);
+  const [agencies, setAgencies] = usePersistentState<AgencyRecord[]>('bayyinah-agencies', seedAgencies);
+  const [delegations, setDelegations] = usePersistentState<DelegationRecord[]>('bayyinah-delegations', seedDelegations);
+  const [monitorItems, setMonitorItems] = usePersistentState<MonitorItem[]>('bayyinah-monitor-items', []);
+  const [draft, setDraft] = usePersistentState<NewCaseDraft>('bayyinah-case-draft', emptyDraft());
+  const [settings, setSettings] = usePersistentState<AppSettings>('bayyinah-settings', emptySettings());
+  const [stickyNotes, setStickyNotes] = usePersistentState<StickyNoteRecord[]>('bayyinah-sticky-notes', []);
+
+// ===== Deferred SQLite disk persistence | electron/main.cjs:202-212 =====
+function persistDatabase() {
+  if (!database || !databasePath) return;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = undefined;
+  fs.writeFileSync(databasePath, Buffer.from(database.export()));
+}
+
+function schedulePersist() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(persistDatabase, 150);
+}
+
+// ===== Payload encryption and decoding | electron/main.cjs:262-273 =====
+function encodePayload(value) {
+  const json = JSON.stringify(value);
+  if (!safeStorage.isEncryptionAvailable()) return json;
+  return `enc:v1:${safeStorage.encryptString(json).toString('base64')}`;
+}
+
+function decodePayload(value) {
+  const payload = String(value ?? 'null');
+  if (!payload.startsWith('enc:v1:')) return JSON.parse(payload);
+  const encrypted = Buffer.from(payload.slice(7), 'base64');
+  return JSON.parse(safeStorage.decryptString(encrypted));
+}
+
+// ===== SQLite location and records schema | electron/main.cjs:275-304 =====
+async function initializeDatabase() {
+  const wasmPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'sql-wasm.wasm')
+    : require.resolve('sql.js/dist/sql-wasm.wasm');
+  const SQL = await initSqlJs({locateFile: () => wasmPath});
+  const userDataPath = app.getPath('userData');
+  databasePath = path.join(userDataPath, 'bayyinah.db');
+  documentsPath = path.join(userDataPath, 'documents');
+  fs.mkdirSync(documentsPath, {recursive: true});
+
+  database = fs.existsSync(databasePath)
+    ? new SQL.Database(fs.readFileSync(databasePath))
+    : new SQL.Database();
+
+  database.run(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS records (
+      entity_type TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (entity_type, record_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_records_type ON records(entity_type);
+
+// ===== Storage read write export IPC | electron/main.cjs:351-381 =====
+function registerIpcHandlers() {
+  ipcMain.handle('storage:get', (_event, key) => {
+    const row = readScalar(
+      `SELECT payload FROM records WHERE entity_type = 'app-state' AND record_id = ?`,
+      [key],
+    );
+    return row ? decodePayload(row.payload) : null;
+  });
+
+  ipcMain.handle('storage:set', (_event, key, value) => {
+    database.run(
+      `INSERT INTO records(entity_type, record_id, payload, created_at, updated_at)
+       VALUES('app-state', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT(entity_type, record_id)
+       DO UPDATE SET payload = excluded.payload, updated_at = CURRENT_TIMESTAMP`,
+      [key, encodePayload(value)],
+    );
+    schedulePersist();
+    return true;
+  });
+
+  ipcMain.handle('storage:export', () => {
+    const statement = database.prepare(`SELECT record_id, payload FROM records WHERE entity_type = 'app-state'`);
+    const output = {};
+    while (statement.step()) {
+      const row = statement.getAsObject();
+      output[row.record_id] = decodePayload(row.payload);
+    }
+    statement.free();
+    return output;
+  });
+
+// ===== Renderer storage bridge | electron/preload.cjs:1-13 =====
+const {contextBridge, ipcRenderer} = require('electron');
+
+contextBridge.exposeInMainWorld('bayyinahDesktop', {
+  isDesktop: true,
+  storage: {
+    get: (key) => ipcRenderer.invoke('storage:get', key),
+    set: (key, value) => ipcRenderer.invoke('storage:set', key, value),
+    exportAll: () => ipcRenderer.invoke('storage:export'),
+    info: () => ipcRenderer.invoke('storage:info'),
+  },
+  backup: {
+    create: () => ipcRenderer.invoke('backup:create'),
+    restore: () => ipcRenderer.invoke('backup:restore'),
+
+// ===== Page permissions | src/App.tsx:1214-1220 =====
+const permissionOptions: {page: Page; label: string}[] = [
+  {page: 'dashboard', label: 'الرئيسية'}, {page: 'cases', label: 'القضايا'},
+  {page: 'sessions', label: 'التقويم الشامل والجلسات'}, {page: 'tasks', label: 'المهام'},
+  {page: 'agencies', label: 'الوكالات والتفويضات'}, {page: 'monitoring', label: 'الاستحقاقات'},
+  {page: 'reports', label: 'التقارير'}, {page: 'tools', label: 'الأدوات المساعدة'}, {page: 'settings', label: 'الإعدادات'},
+];
+const allUserPermissions = permissionOptions.map((item) => item.page);
+
+// ===== Current all-admin upgrade behavior | src/App.tsx:6013-6021 =====
+  useEffect(() => {
+    if (!usersLoaded || !users.length) return;
+    const needsUpgrade = users.some((user) => user.role !== 'admin' || JSON.stringify(user.permissions ?? []) !== JSON.stringify(allUserPermissions));
+    if (!needsUpgrade) return;
+    const upgradedUsers = users.map((user) => ({...user, role: 'admin' as const, permissions: allUserPermissions}));
+    setUsers(upgradedUsers);
+    window.localStorage.setItem('bayyinah-users', JSON.stringify(upgradedUsers));
+    void window.bayyinahDesktop?.storage.set('bayyinah-users', upgradedUsers);
+  }, [setUsers, users, usersLoaded]);
+
+// ===== Page access selection | src/App.tsx:6454-6456 =====
+  const allowedPages = authenticatedUser.role === 'admin' ? allUserPermissions : (authenticatedUser.permissions ?? ['dashboard']);
+  const requiredPage = page === 'new' || page === 'details' ? 'cases' : page;
+  if (!allowedPages.includes(requiredPage)) setPage(allowedPages[0] ?? 'dashboard');
+
+// ===== Page integration | src/App.tsx:6521-6525 =====
+      {page === 'sessions' && <Sessions cases={cases} monitorItems={monitorItems} onUpdateCase={updateCase} openCase={openCase} />}
+      {page === 'tasks' && <TasksPage cases={cases} onUpdateCase={updateCase} openCase={openCase} />}
+      {page === 'monitoring' && <MonitoringPage items={monitorItems} onNotice={setNotice} setItems={setMonitorItems} />}
+      {page === 'tools' && <ToolsPage />}
+      {page === 'reports' && <Reports agencies={agencies} cases={cases} delegations={delegations} monitorItems={monitorItems} />}

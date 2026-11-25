@@ -1,0 +1,67 @@
+{
+  "name": "bayyinah-qadiyati",
+  "productName": "بيّنة - قضيتي",
+  "private": true,
+  "version": "1.0.12",
+  "description": "نظام عربي لإدارة القضايا والجلسات والوكالات والاستحقاقات",
+  "author": "الأستاذ عبدالله المخلافي",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.app.json && vite build --config vite.config.ts",
+    "preview": "vite preview",
+    "desktop": "pnpm run build && electron .",
+    "desktop:pack": "pnpm run build && electron-builder --dir",
+    "desktop:dist": "pnpm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sql.js": "^1.14.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/sql.js": "^1.4.11",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  },
+  "build": {
+    "appId": "sa.bayyinah.qadiyati",
+    "productName": "بيّنة - قضيتي",
+    "artifactName": "Bayyinah-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
+        "to": "sql-wasm.wasm"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.svg",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "بيّنة - قضيتي"
+    }
+  }
+}
